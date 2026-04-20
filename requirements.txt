@@ -1,0 +1,10 @@
+# MAREN — Marvis Autonomous Remediation Engine for Networks
+# Python 3.11+
+#
+# Runtime dependencies
+requests==2.32.3
+python-dotenv==1.0.1
+pyyaml==6.0.2
+
+# Test runner (optional — tests also run under stdlib unittest)
+pytest==8.3.5

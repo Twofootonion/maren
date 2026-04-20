@@ -1,0 +1,123 @@
+# MAREN — Marvis Autonomous Remediation Engine for Networks
+# Default configuration file.
+#
+# Values here are overridden by environment variables where both exist.
+# See .env.example for the full list of environment variable equivalents.
+# Sensitive values (API token, org ID) must be set via environment variables
+# or .env — never hardcode credentials in this file.
+
+# ── Execution Mode ────────────────────────────────────────────────────────────
+
+execution:
+  # Master dry-run switch. Overridden by DRY_RUN env var or --live CLI flag.
+  # true  = log what would happen; no changes applied to the network (safe default)
+  # false = live remediation; changes are applied via Mist API
+  dry_run: true
+
+  # How often to poll Mist API for telemetry, in seconds
+  poll_interval_seconds: 60
+
+  # Number of polling cycles before exiting (0 = run until interrupted)
+  poll_cycles: 0
+
+# ── Mist API ──────────────────────────────────────────────────────────────────
+
+mist:
+  # Base URL for Mist API. Override for EU/APAC tenants.
+  # US (default): https://api.mist.com
+  # EU:           https://api.eu.mist.com
+  # APAC:         https://api.ac.mist.com
+  base_url: "https://api.mist.com"
+
+  # HTTP request timeout in seconds
+  request_timeout_seconds: 10
+
+  # Retry configuration for transient API errors (429, 5xx)
+  retry:
+    max_attempts: 3
+    base_backoff_seconds: 1.0
+    max_backoff_seconds: 30.0
+
+# ── Remediation Thresholds ────────────────────────────────────────────────────
+#
+# Anomaly scores are 0–100. A score at or above a threshold activates that tier.
+# Tiers are mutually exclusive per action — the highest matching tier wins.
+#
+#   autonomous  — action fires immediately, no human approval required
+#   supervised  — action fires only after operator acknowledgment
+#   manual      — action is logged and escalated; MAREN does not execute it
+
+thresholds:
+  autonomous: 75.0
+  supervised: 85.0
+  manual: 92.0
+
+# ── Supervised Tier ───────────────────────────────────────────────────────────
+
+supervised:
+  # Seconds to wait for operator acknowledgment before marking action as skipped
+  ack_timeout_seconds: 300
+
+# ── Actions ───────────────────────────────────────────────────────────────────
+#
+# Per-action overrides. Any action not listed here uses the global thresholds.
+# Set enabled: false to disable a specific action entirely.
+
+actions:
+  channel_change:
+    enabled: true
+
+  rrm_recalculate:
+    enabled: true
+
+  bounce_port:
+    enabled: true
+    # Port bounce requires supervised or higher — override autonomous threshold
+    # to prevent unsupervised port bounces in production environments
+    thresholds:
+      autonomous: 999.0   # effectively disabled at autonomous tier
+      supervised: 85.0
+      manual: 92.0
+
+  disable_reenable_wlan:
+    enabled: true
+
+  band_steering:
+    enabled: true
+
+# ── Output ────────────────────────────────────────────────────────────────────
+
+output:
+  # Path to NDJSON audit log (one JSON object per line, appended each run)
+  audit_log_path: "maren_audit.json"
+
+  # Path to Markdown run summary (overwritten each run)
+  summary_path: "maren_summary.md"
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+logging:
+  # Log level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+
+  # Log format: text or json
+  format: "text"
+
+# ── Webhooks ──────────────────────────────────────────────────────────────────
+#
+# Webhook URLs should be set via environment variables (WEBHOOK_SLACK_URL,
+# WEBHOOK_PAGERDUTY_URL) to avoid committing tokens to source control.
+# The entries below enable/disable each integration independently.
+
+webhooks:
+  slack:
+    enabled: false
+    # url: set via WEBHOOK_SLACK_URL environment variable
+
+  pagerduty:
+    enabled: false
+    # url: set via WEBHOOK_PAGERDUTY_URL environment variable
+    # Only fires for failed or manual-tier actions
+    severity_filter:
+      - failed
+      - manual
