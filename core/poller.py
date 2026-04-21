@@ -271,6 +271,62 @@ def fetch_marvis_actions(
                     "self_drivable": False,
                     "details":       {"event_type": "port_flap"},
                 })
+        # --- MARVIS_EVENT_STA_LEAVING → roaming_failure actions ---
+        # Fetch wireless client events separately using the correct endpoint
+        client_url = f"{base_url}/sites/{site_id}/clients/events/search"
+        client_params = {
+            "type": "MARVIS_EVENT_STA_LEAVING",
+            "start": since,
+            "limit": 100,
+        }
+        roaming_events: dict[str, list] = {}
+        try:
+            resp = _get(session, client_url, params=client_params)
+            # 404 means no client events endpoint — skip silently
+            if resp.ok:
+                client_data = resp.json()
+                for evt in client_data.get("results", []):
+                    mac = evt.get("mac", "")
+                    if mac:
+                        roaming_events.setdefault(mac, []).append(evt)
+        except (PollerError, requests.RequestException, ValueError) as exc:
+            logger.warning(
+                "Failed to fetch roaming events",
+                extra={"site_id": site_id, "error": str(exc)},
+            )
+
+        # Only flag as roaming failure if client left 3+ APs in the window
+        # — filters out normal single-AP roams
+        for mac, evts in roaming_events.items():
+            unique_aps = len(set(e.get("ap", "") for e in evts))
+            if unique_aps >= 3:
+                # Get latest RSSI and SSID for context
+                latest = sorted(evts, key=lambda e: e.get("timestamp", 0))[-1]
+                rssi = latest.get("rssi", 0)
+                ssid = latest.get("ssid", "unknown")
+                actions.append({
+                    "id":            f"{site_id}_roaming_{mac}",
+                    "category":      "client_connectivity",
+                    "symptom":       "roaming_failure",
+                    "issue_type":    "roaming_failure",
+                    "severity":      "high" if rssi < -75 else "medium",
+                    "site_id":       site_id,
+                    "client_id":     mac,
+                    "status":        "open",
+                    "batch_count":   len(evts),
+                    "self_drivable": False,
+                    "details": {
+                        "client_mac":  mac,
+                        "ssid":        ssid,
+                        "unique_aps":  unique_aps,
+                        "roam_count":  len(evts),
+                        "latest_rssi": rssi,
+                        "failure_reason": (
+                            f"Client roamed across {unique_aps} APs "
+                            f"{len(evts)} times — RSSI {rssi}dBm"
+                        ),
+                    },
+                })
 
     logger.info(
         "Synthesized actions from device events",
