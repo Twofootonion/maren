@@ -300,8 +300,8 @@ def _exec_marvis_rca_query(
 
     if not resp.ok:
         err = _handle_http_error(resp, "marvis_rca_query")
-        logger.error(err)
-        return _build_result("failed", url, "POST", payload,
+        logger.warning(err)
+        return _build_result("skipped", url, "POST", payload,
                              http_status=resp.status_code, error=err)
 
     logger.info("Marvis RCA query submitted",
@@ -783,7 +783,8 @@ def execute(
 
     action["execution_result"] = result
 
-    log_level = "info" if result["action_result"] in ("success", "dry_run") else "error"
+    log_level = "info" if result["action_result"] in ("success", "dry_run", "skipped"
+    ) else "error"
     getattr(logger, log_level)(
         "Execution complete",
         extra={
