@@ -310,6 +310,78 @@ def _exec_marvis_rca_query(
                          http_status=resp.status_code,
                          response_body=_safe_json(resp))
 
+def _exec_structured_alert(
+    action: dict[str, Any],
+    session: requests.Session,
+    base_url: str,
+    dry_run: bool,
+) -> dict[str, Any]:
+    """Write a structured diagnostic alert to the audit log — Tier 1.
+
+    Used for issues that require infrastructure-level fixes outside the
+    Mist API scope (e.g. DHCP server failures, switch offline).
+    Always succeeds — the audit record IS the action.
+
+    Parameters
+    ----------
+    action : dict[str, Any]
+        Marvis Action with decision fields attached.
+    session : requests.Session
+        Authenticated Mist API session (unused — no API call made).
+    base_url : str
+        API base URL (unused).
+    dry_run : bool
+        If True, log intent only.
+
+    Returns
+    -------
+    dict[str, Any]
+        Execution result dict.
+    """
+    site_name  = action.get("site_name", "unknown")
+    issue_type = action.get("issue_type", "unknown")
+    details    = action.get("details", {})
+    score      = action.get("priority_score", 0)
+    severity   = action.get("severity", "unknown")
+    blast      = action.get("blast_radius", 0)
+    recurrence = action.get("recurrence_count", 0)
+
+    alert_payload = {
+        "alert_type":    "maren_diagnostic",
+        "site":          site_name,
+        "issue":         issue_type,
+        "details":       details,
+        "priority_score": score,
+        "severity":      severity,
+        "blast_radius":  blast,
+        "recurrence":    recurrence,
+        "recommendation": (
+            f"Issue '{issue_type}' at '{site_name}' requires manual "
+            f"infrastructure investigation. Priority score: {score:.1f}. "
+            f"Check DHCP server configuration for affected VLANs."
+            if "dhcp" in issue_type.lower()
+            else f"Issue '{issue_type}' at '{site_name}' requires "
+                 f"manual investigation. Priority score: {score:.1f}."
+        ),
+    }
+
+    if dry_run:
+        logger.info(
+            "[DRY RUN] Would write structured diagnostic alert",
+            extra={"issue_type": issue_type, "site": site_name,
+                   "payload": alert_payload},
+        )
+        return _build_result("dry_run", "internal://audit_log", "ALERT",
+                             alert_payload)
+
+    logger.info(
+        "Structured diagnostic alert written",
+        extra={"issue_type": issue_type, "site": site_name,
+               "priority_score": score},
+    )
+    return _build_result("success", "internal://audit_log", "ALERT",
+                         alert_payload)
+
 
 def _exec_bounce_port(
     action: dict[str, Any],
@@ -680,13 +752,13 @@ def _exec_bulk_config_push(
 _HANDLERS = {
     "clear_client_session":   _exec_clear_client_session,
     "marvis_rca_query":       _exec_marvis_rca_query,
+    "structured_alert":       _exec_structured_alert,      # ← add this
     "bounce_port":            _exec_bounce_port,
     "push_ap_config":         _exec_push_ap_config,
     "disable_reenable_wlan":  _exec_disable_reenable_wlan,
     "restart_device":         _exec_restart_device,
     "bulk_config_push":       _exec_bulk_config_push,
 }
-
 
 # --------------------------------------------------------------------------- #
 # Public executor interface

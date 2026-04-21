@@ -49,129 +49,152 @@ ACTION_MATRIX: dict[str, dict[str, Any]] = {
     # Tier 1 — always allowed in live mode
     # ------------------------------------------------------------------ #
     "bad_wired_uplink": {
-        "tier":           1,
-        "action_type":    "marvis_rca_query",
-        "target_field":   "device_id",
+        "tier":            1,
+        "action_type":     "structured_alert",
+        "target_field":    "device_id",
         "fallback_target": "site_id",
     },
     "dns_failure": {
-        "tier":           1,
-        "action_type":    "marvis_rca_query",
-        "target_field":   "site_id",
+        "tier":            1,
+        "action_type":     "structured_alert",
+        "target_field":    "site_id",
         "fallback_target": "site_id",
     },
     "dhcp_failure": {
-        "tier":           1,
-        "action_type":    "marvis_rca_query",
-        "target_field":   "site_id",
+        "tier":            1,
+        "action_type":     "structured_alert",
+        "target_field":    "site_id",
         "fallback_target": "site_id",
     },
     "missing_vlan": {
-        "tier":           1,
-        "action_type":    "marvis_rca_query",
-        "target_field":   "site_id",
+        "tier":            1,
+        "action_type":     "structured_alert",
+        "target_field":    "site_id",
+        "fallback_target": "site_id",
+    },
+    "connectivity": {
+        "tier":            1,
+        "action_type":     "structured_alert",
+        "target_field":    "site_id",
+        "fallback_target": "site_id",
+    },
+    "sw_offline": {
+        "tier":            1,
+        "action_type":     "structured_alert",
+        "target_field":    "device_id",
+        "fallback_target": "site_id",
+    },
+    "switch_disconnect": {
+        "tier":            1,
+        "action_type":     "structured_alert",
+        "target_field":    "device_id",
         "fallback_target": "site_id",
     },
     "auth_failure": {
-        "tier":           1,
-        "action_type":    "clear_client_session",
-        "target_field":   "client_id",
+        "tier":            1,
+        "action_type":     "clear_client_session",
+        "target_field":    "client_id",
         "fallback_target": "site_id",
     },
     "roaming_failure": {
-        "tier":           1,
-        "action_type":    "clear_client_session",
-        "target_field":   "client_id",
+        "tier":            1,
+        "action_type":     "clear_client_session",
+        "target_field":    "client_id",
         "fallback_target": "site_id",
     },
     "client_connectivity": {
-        "tier":           1,
-        "action_type":    "clear_client_session",
-        "target_field":   "client_id",
+        "tier":            1,
+        "action_type":     "clear_client_session",
+        "target_field":    "client_id",
         "fallback_target": "site_id",
     },
     # ------------------------------------------------------------------ #
     # Tier 2 — requires ENABLE_TIER2=true
     # ------------------------------------------------------------------ #
     "wifi_interference": {
-        "tier":           2,
-        "action_type":    "push_ap_config",
-        "target_field":   "ap_id",
+        "tier":            2,
+        "action_type":     "push_ap_config",
+        "target_field":    "ap_id",
         "fallback_target": "device_id",
     },
     "wifi": {
-        "tier":           2,
-        "action_type":    "push_ap_config",
-        "target_field":   "ap_id",
+        "tier":            2,
+        "action_type":     "push_ap_config",
+        "target_field":    "ap_id",
         "fallback_target": "device_id",
     },
     "channel_utilization": {
-        "tier":           2,
-        "action_type":    "push_ap_config",
-        "target_field":   "ap_id",
+        "tier":            2,
+        "action_type":     "push_ap_config",
+        "target_field":    "ap_id",
         "fallback_target": "device_id",
     },
     "ap_offline": {
-        "tier":           2,
-        "action_type":    "bounce_port",
-        "target_field":   "device_id",
+        "tier":            2,
+        "action_type":     "bounce_port",
+        "target_field":    "device_id",
         "fallback_target": "site_id",
     },
     "switch_port": {
-        "tier":           2,
-        "action_type":    "bounce_port",
-        "target_field":   "port_id",
+        "tier":            2,
+        "action_type":     "bounce_port",
+        "target_field":    "port_id",
+        "fallback_target": "device_id",
+    },
+    "port_flap": {
+        "tier":            2,
+        "action_type":     "bounce_port",
+        "target_field":    "port_id",
         "fallback_target": "device_id",
     },
     "wlan": {
-        "tier":           2,
-        "action_type":    "disable_reenable_wlan",
-        "target_field":   "wlan_id",
+        "tier":            2,
+        "action_type":     "disable_reenable_wlan",
+        "target_field":    "wlan_id",
         "fallback_target": "site_id",
     },
     # ------------------------------------------------------------------ #
     # Tier 3 — requires ENABLE_TIER3=true AND TIER3_CONFIRM=true
     # ------------------------------------------------------------------ #
     "device_restart": {
-        "tier":           3,
-        "action_type":    "restart_device",
-        "target_field":   "device_id",
+        "tier":            3,
+        "action_type":     "restart_device",
+        "target_field":    "device_id",
         "fallback_target": "site_id",
     },
     "firmware": {
-        "tier":           3,
-        "action_type":    "bulk_config_push",
-        "target_field":   "site_id",
+        "tier":            3,
+        "action_type":     "bulk_config_push",
+        "target_field":    "site_id",
         "fallback_target": "site_id",
     },
     "site_down": {
-        "tier":           3,
-        "action_type":    "bulk_config_push",
-        "target_field":   "site_id",
+        "tier":            3,
+        "action_type":     "bulk_config_push",
+        "target_field":    "site_id",
         "fallback_target": "site_id",
     },
     # ------------------------------------------------------------------ #
     # Catch-all
     # ------------------------------------------------------------------ #
     "default": {
-        "tier":           1,
-        "action_type":    "marvis_rca_query",
-        "target_field":   "site_id",
+        "tier":            1,
+        "action_type":     "structured_alert",
+        "target_field":    "site_id",
         "fallback_target": "site_id",
     },
 }
-
 # Human-readable descriptions for each action type (used in reasoning text).
 ACTION_DESCRIPTIONS: dict[str, str] = {
     "clear_client_session":    "Disconnect and re-authenticate the affected client",
     "marvis_rca_query":        "Trigger a Marvis RCA query and capture the AI analysis",
+    "structured_alert":        "Write a structured diagnostic alert to the audit log",
     "bounce_port":             "Disable then re-enable the affected switch port",
     "push_ap_config":          "Push a channel/power config update to the affected AP",
     "disable_reenable_wlan":   "Disable then re-enable the affected WLAN",
     "restart_device":          "Restart the affected device",
     "bulk_config_push":        "Push a bulk config update across the affected site",
 }
-
 
 # --------------------------------------------------------------------------- #
 # Config dataclass (passed in from main.py / config.yaml)
