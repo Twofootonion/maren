@@ -406,6 +406,9 @@ def decide_all(
     for action in actions:
         decide(action, config)
 
+    # Phase 2: Deduplicate port bounce actions by port_id
+    _deduplicate_port_actions(actions)
+
     permitted_count = sum(1 for a in actions if a.get("action_permitted"))
     skipped_count   = len(actions) - permitted_count
 
@@ -564,3 +567,75 @@ def _build_reasoning(
         reasoning += " Action will be executed."
 
     return reasoning
+
+
+def _deduplicate_port_actions(actions: list[dict[str, Any]]) -> None:
+    """Deduplicate port bounce actions by port_id in-place.
+    
+    When multiple devices have port flaps on the same port number, only the
+    highest-priority action is permitted to prevent simultaneous bounces across
+    access and core switches.
+    
+    Modifies the actions list in-place by setting action_permitted=False and
+    updating skip_reason for lower-priority duplicate port actions.
+    
+    Parameters
+    ----------
+    actions : list[dict[str, Any]]
+        List of actions with decision fields already attached
+    """
+    port_groups: dict[str, list[dict[str, Any]]] = {}
+    
+    # Group bounce_port actions by port_id
+    for action in actions:
+        if action.get("action_type") == "bounce_port":
+            port_id = action.get("port_id")
+            if port_id:
+                if port_id not in port_groups:
+                    port_groups[port_id] = []
+                port_groups[port_id].append(action)
+    
+    # For each port with multiple flap events, keep only the highest priority
+    for port_id, group in port_groups.items():
+        if len(group) > 1:
+            # Sort by priority score desc, then batch_count desc
+            sorted_group = sorted(
+                group,
+                key=lambda x: (
+                    x.get("priority_score", 0),
+                    x.get("batch_count", 0)
+                ),
+                reverse=True
+            )
+            
+            # Keep the first (highest priority), skip the rest
+            kept_action = sorted_group[0]
+            kept_device = kept_action.get("action_target", "unknown")
+            kept_score = kept_action.get("priority_score", 0)
+            
+            logger.info(
+                "Port deduplication on %s: keeping device %s (score %.2f), "
+                "skipping %d others",
+                port_id, kept_device, kept_score, len(sorted_group) - 1,
+            )
+            
+            for action in sorted_group[1:]:
+                skipped_device = action.get("action_target", "unknown")
+                skipped_score = action.get("priority_score", 0)
+                
+                # Mark as not permitted
+                action["action_permitted"] = False
+                action["skip_reason"] = (
+                    f"Duplicate port action on {port_id} — "
+                    f"device {kept_device} (score {kept_score:.2f}) "
+                    f"has higher priority than {skipped_device} (score {skipped_score:.2f})"
+                )
+                action["remediation_reasoning"] += (
+                    f" NOT EXECUTED: {action['skip_reason']}"
+                )
+                
+                logger.info(
+                    "  Skipping duplicate port action on %s: device %s (score %.2f) — "
+                    "lower priority than %s",
+                    port_id, skipped_device, skipped_score, kept_device,
+                )
