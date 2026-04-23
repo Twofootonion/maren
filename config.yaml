@@ -3,7 +3,7 @@
 
 # Execution mode
 dry_run: true                  # true = log only | false = execute live actions
-poll_interval_seconds: 300     # polling interval in --loop mode
+poll_interval_seconds: 60     # polling interval in --loop mode
 min_score_threshold: 2.0       # ignore issues scored below this
 
 # Tier gates — enable one at a time, verify behavior, then escalate

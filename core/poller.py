@@ -240,7 +240,7 @@ def fetch_marvis_actions(
                         "issue_type":    "switch_disconnect",
                         "severity":      "high",
                         "site_id":       site_id,
-                        "device_id":     mac,
+                        "device_id":     f"00000000-0000-0000-1000-{mac}",
                         "status":        "open",
                         "batch_count":   1,
                         "self_drivable": False,
@@ -264,12 +264,13 @@ def fetch_marvis_actions(
                     "issue_type":    "switch_port",
                     "severity":      "medium",
                     "site_id":       site_id,
-                    "device_id":     mac,
+                    "device_id":     f"00000000-0000-0000-1000-{mac}",
                     "port_id":       port_id,
                     "status":        "open",
                     "batch_count":   len(evts),
                     "self_drivable": False,
                     "details":       {"event_type": "port_flap"},
+                    "action_target": f"00000000-0000-0000-1000-{mac}",
                 })
         # --- MARVIS_EVENT_STA_LEAVING → roaming_failure actions ---
         # Fetch wireless client events separately using the correct endpoint

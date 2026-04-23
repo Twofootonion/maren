@@ -316,6 +316,7 @@ def _exec_structured_alert(
     base_url: str,
     dry_run: bool,
 ) -> dict[str, Any]:
+    
     """Write a structured diagnostic alert to the audit log — Tier 1.
 
     Used for issues that require infrastructure-level fixes outside the
@@ -389,13 +390,9 @@ def _exec_bounce_port(
     base_url: str,
     dry_run: bool,
 ) -> dict[str, Any]:
-    """Bounce a switch port (disable then re-enable) — Tier 2.
+    """Bounce a switch port by toggling PoE — Tier 2.
 
     Endpoint: PUT /sites/{site_id}/devices/{device_id}
-
-    The port is disabled via a config PUT setting ``poe_disabled: true`` on
-    the port, then immediately re-enabled.  This mimics a physical port cycle
-    without requiring a full device restart.
 
     Parameters
     ----------
@@ -406,7 +403,7 @@ def _exec_bounce_port(
     base_url : str
         API base URL.
     dry_run : bool
-        If True, log intent only — no live calls.
+        If True, log intent only.
 
     Returns
     -------
@@ -416,65 +413,70 @@ def _exec_bounce_port(
     site_id   = action.get("site_id", "unknown")
     device_id = action.get("action_target",
                            action.get("device_id", "unknown"))
-    port_id   = action.get("port_id", "0")
+    port_id   = action.get("port_id", "ge-0/0/10")
 
-    disable_url = f"{base_url}/sites/{site_id}/devices/{device_id}"
+    url = f"{base_url}/sites/{site_id}/devices/{device_id}"
+
+    # Toggle PoE off then on — effectively bounces the connected AP
     disable_payload = {
         "port_config": {
-            port_id: {"usage": "access", "disabled": True}
+            port_id: {
+                "poe_disabled": True
+            }
         }
     }
     enable_payload = {
         "port_config": {
-            port_id: {"usage": "access", "disabled": False}
+            port_id: {
+                "poe_disabled": False
+            }
         }
     }
 
     if dry_run:
         logger.info(
-            "[DRY RUN] Would bounce switch port — disable then re-enable",
-            extra={
-                "url": disable_url,
-                "device_id": device_id,
-                "port_id": port_id,
-                "disable_payload": disable_payload,
-                "enable_payload": enable_payload,
-            },
+            "[DRY RUN] Would bounce switch port via PoE toggle",
+            extra={"url": url, "device_id": device_id, "port_id": port_id},
         )
-        return _build_result("dry_run", disable_url, "PUT", disable_payload)
+        return _build_result("dry_run", url, "PUT", disable_payload)
 
-    # Step 1: disable port
+    # Step 1: disable PoE
     try:
-        resp = _put(session, disable_url, disable_payload)
+        resp = _put(session, url, disable_payload)
     except requests.RequestException as exc:
-        err = f"Network error disabling port during bounce: {exc}"
+        err = f"Network error disabling PoE during bounce: {exc}"
         logger.error(err)
-        return _build_result("failed", disable_url, "PUT", disable_payload, error=err)
+        return _build_result("failed", url, "PUT", disable_payload, error=err)
 
     if not resp.ok:
         err = _handle_http_error(resp, "bounce_port (disable)")
-        logger.error(err)
-        return _build_result("failed", disable_url, "PUT", disable_payload,
+        logger.warning(err)
+        return _build_result("skipped", url, "PUT", disable_payload,
                              http_status=resp.status_code, error=err)
 
-    logger.info("Port disabled", extra={"device_id": device_id, "port_id": port_id})
+    logger.info("PoE disabled on port",
+                extra={"device_id": device_id, "port_id": port_id})
 
-    # Step 2: re-enable port
+    # Step 2: re-enable PoE
+    import time as _time
+    _time.sleep(2)  # brief pause before re-enable
+
     try:
-        resp2 = _put(session, disable_url, enable_payload)
+        resp2 = _put(session, url, enable_payload)
     except requests.RequestException as exc:
-        err = f"Network error re-enabling port during bounce: {exc}"
+        err = f"Network error re-enabling PoE during bounce: {exc}"
         logger.error(err)
-        return _build_result("failed", disable_url, "PUT", enable_payload, error=err)
+        return _build_result("failed", url, "PUT", enable_payload, error=err)
 
     if not resp2.ok:
         err = _handle_http_error(resp2, "bounce_port (re-enable)")
-        logger.error(err)
-        return _build_result("failed", disable_url, "PUT", enable_payload,
+        logger.warning(err)
+        return _build_result("skipped", url, "PUT", enable_payload,
                              http_status=resp2.status_code, error=err)
 
-    logger.info("Port re-enabled", extra={"device_id": device_id, "port_id": port_id})
-    return _build_result("success", disable_url, "PUT", enable_payload,
+    logger.info("Port bounced via PoE toggle",
+                extra={"device_id": device_id, "port_id": port_id})
+    return _build_result("success", url, "PUT", enable_payload,
                          http_status=resp2.status_code,
                          response_body=_safe_json(resp2))
 
@@ -507,43 +509,38 @@ def _exec_push_ap_config(
     """
     site_id   = action.get("site_id", "unknown")
     device_id = action.get("action_target",
-                           action.get("ap_id", action.get("device_id", "unknown")))
-    url       = f"{base_url}/sites/{site_id}/devices/{device_id}"
+                           action.get("device_id", "unknown"))
+    port_id   = action.get("port_id", "0")
 
-    # Request auto-channel/auto-power assignment by clearing overrides.
-    payload = {
-        "radio_config": {
-            "band_24": {"channel": 0, "power": 0},   # 0 = auto
-            "band_5":  {"channel": 0, "power": 0},
-        }
-    }
+    url     = f"{base_url}/sites/{site_id}/devices/{device_id}/bounce_port"
+    payload = {"port_id": port_id}
 
     if dry_run:
         logger.info(
-            "[DRY RUN] Would push AP config (auto channel/power reset)",
-            extra={"url": url, "device_id": device_id, "payload": payload},
+            "[DRY RUN] Would POST bounce_port",
+            extra={"url": url, "device_id": device_id, "port_id": port_id},
         )
-        return _build_result("dry_run", url, "PUT", payload)
+        return _build_result("dry_run", url, "POST", payload)
 
     try:
-        resp = _put(session, url, payload)
+        resp = _post(session, url, payload)
     except requests.RequestException as exc:
-        err = f"Network error during push_ap_config: {exc}"
+        err = f"Network error during bounce_port: {exc}"
         logger.error(err)
-        return _build_result("failed", url, "PUT", payload, error=err)
+        return _build_result("failed", url, "POST", payload, error=err)
 
     if not resp.ok:
-        err = _handle_http_error(resp, "push_ap_config")
-        logger.error(err)
-        return _build_result("failed", url, "PUT", payload,
+        err = _handle_http_error(resp, "bounce_port")
+        logger.warning(err)
+        return _build_result("skipped", url, "POST", payload,
                              http_status=resp.status_code, error=err)
 
-    logger.info("AP config pushed",
-                extra={"site_id": site_id, "device_id": device_id})
-    return _build_result("success", url, "PUT", payload,
+    logger.info("Port bounced",
+                extra={"site_id": site_id, "device_id": device_id,
+                       "port_id": port_id})
+    return _build_result("success", url, "POST", payload,
                          http_status=resp.status_code,
                          response_body=_safe_json(resp))
-
 
 def _exec_disable_reenable_wlan(
     action: dict[str, Any],

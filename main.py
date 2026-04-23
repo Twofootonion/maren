@@ -403,12 +403,9 @@ def main() -> int:
 
     # CLI --live flag overrides config file dry_run setting.
     if args.live:
-        config["dry_run"] = False
-        logger.warning(
-            "LIVE MODE ENABLED — remediation actions will be executed",
-        )
-    else:
-        config["dry_run"] = True
+       config["dry_run"] = False
+       logger.warning("LIVE MODE ENABLED — remediation actions will be executed")
+    # If --live not specified, respect config.yaml dry_run setting
 
     # Apply log level from config.
     configure_root_level(config.get("log_level", "INFO"))

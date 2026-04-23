@@ -138,14 +138,14 @@ ACTION_MATRIX: dict[str, dict[str, Any]] = {
     "switch_port": {
         "tier":            2,
         "action_type":     "bounce_port",
-        "target_field":    "port_id",
-        "fallback_target": "device_id",
+        "target_field":    "device_id",
+        "fallback_target": "site_id",
     },
     "port_flap": {
         "tier":            2,
         "action_type":     "bounce_port",
-        "target_field":    "port_id",
-        "fallback_target": "device_id",
+        "target_field":    "device_id",
+        "fallback_target": "site_id",
     },
     "wlan": {
         "tier":            2,
@@ -298,8 +298,8 @@ def decide(
 
     # --- Look up category in action matrix ---
     category = (
-        action.get("category")
-        or action.get("issue_type")
+        action.get("issue_type")
+        or action.get("category")
         or "default"
     ).lower()
 
